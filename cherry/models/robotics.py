@@ -5,6 +5,10 @@ import torch.nn as nn
 
 from cherry.nn import RoboticsLinear
 
+import sys
+sys.path.append("/content/cs285_f2020/cs285-final-project") # Adds higher directory to python modules path.
+from infrastructure import pytorch_util as ptu
+import numpy as np
 
 class RoboticsMLP(nn.Module):
 
@@ -155,10 +159,14 @@ class LinearValue(nn.Module):
         reg = reg.to(states.device)
         A = features.t() @ features + reg
         b = features.t() @ returns
-        if hasattr(th, 'lstsq'):  # Required for torch < 1.3.0
-            coeffs, _ = th.lstsq(b, A)
-        else:
-            coeffs, _ = th.gels(b, A)
+        A_np = ptu.to_numpy(A)
+        b_np = ptu.to_numpy(b)
+        coeffs_np = np.linalg.lstsq(A_np, b_np)[0]
+        coeffs = ptu.from_numpy(coeffs_np)
+        # if hasattr(th, 'lstsq'):  # Required for torch < 1.3.0
+        #     coeffs, _ = th.lstsq(b, A)
+        # else:
+        #     coeffs, _ = th.gels(b, A)
         self.linear.weight.data = coeffs.data.t()
 
     def forward(self, states):

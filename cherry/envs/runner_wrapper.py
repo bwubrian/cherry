@@ -6,7 +6,14 @@ from .base import Wrapper
 from .utils import is_vectorized
 
 from collections.abc import Iterable
+from skimage.color import rgb2gray
+from skimage.transform import rescale, resize, downscale_local_mean
 
+import torch
+
+import sys
+sys.path.append("/content/cs285_f2020/cs285-final-project") # Adds higher directory to python modules path.
+from infrastructure import pytorch_util as ptu
 
 def flatten_episodes(replay, episodes, num_workers):
     """
@@ -58,6 +65,31 @@ def flatten_episodes(replay, episodes, num_workers):
             break
     return flat_replay
 
+# device = None
+
+
+# def init_gpu(use_gpu=True, gpu_id=0):
+#     global device
+#     if torch.cuda.is_available() and use_gpu:
+#         device = torch.device("cuda:" + str(gpu_id))
+#         print("Using GPU id {}".format(gpu_id))
+#     else:
+#         device = torch.device("cpu")
+#         print("GPU not detected. Defaulting to CPU.")
+
+
+# def set_device(gpu_id):
+#     torch.cuda.set_device(gpu_id)
+
+
+# def from_numpy(*args, **kwargs):
+#     print("moving to device: ", device)
+#     return torch.from_numpy(*args, **kwargs).float().to(device)
+
+
+# def to_numpy(tensor):
+#     return tensor.to('cpu').detach().numpy()
+
 
 class Runner(Wrapper):
 
@@ -73,9 +105,26 @@ class Runner(Wrapper):
         self.env = env
         self._needs_reset = True
         self._current_state = None
+        #init_gpu()
 
+    def full_obs_to_smol_boi(self, state):
+        state = ptu.to_numpy(state)
+        R = state[0,:,:,0]
+        G = state[0,:,:,1]
+        B = state[0,:,:,2]
+        gray = 0.2125 * R + 0.7154 * G + 0.0721 * B
+        image_rescaled = rescale(gray, 0.125, anti_aliasing=False)
+        image_rescaled = ptu.from_numpy(image_rescaled)
+        image_rescaled = image_rescaled.float().unsqueeze(0)
+        #image_rescaled = image_rescaled.add(1.0)
+       # print("image_rescaled", image_rescaled)
+        print("image_rescaled.max", image_rescaled.max())
+        print("image_rescaled.mean", image_rescaled.mean())
+        #print("image_rescaled.shape", image_rescaled.shape)
+        return image_rescaled
+        
     def reset(self, *args, **kwargs):
-        self._current_state = self.env.reset(*args, **kwargs)
+        self._current_state = self.full_obs_to_smol_boi(self.env.reset(*args, **kwargs))
         self._needs_reset = False
         return self._current_state
 
@@ -91,7 +140,7 @@ class Runner(Wrapper):
         """
         Runner wrapper's run method.
         """
-
+        
         if steps is None:
             steps = float('inf')
             if self.is_vectorized:
@@ -102,10 +151,13 @@ class Runner(Wrapper):
             msg = 'Either steps or episodes should be set.'
             raise Exception(msg)
 
+        steps = 1000
+
         replay = ch.ExperienceReplay()
         collected_episodes = 0
         collected_steps = 0
         while True:
+            print("collected_steps", collected_steps)
             if collected_steps >= steps or collected_episodes >= episodes:
                 if self.is_vectorized and collected_episodes >= episodes:
                     replay = flatten_episodes(replay, episodes, self.num_envs)
@@ -115,6 +167,8 @@ class Runner(Wrapper):
                 self.reset()
             info = {}
             action = get_action(self._current_state)
+            print("action", action)
+
             if isinstance(action, tuple):
                 skip_unpack = False
                 if self.is_vectorized:
@@ -137,6 +191,20 @@ class Runner(Wrapper):
                         raise NotImplementedError(msg)
             old_state = self._current_state
             state, reward, done, _ = self.env.step(action)
+            #print("reward: ", reward)
+            #print("state.shape", state.shape)
+            #print("state", state)
+            #state = rgb2gray(state)
+            state = self.full_obs_to_smol_boi(state)
+            #reward = reward.to(ptu.get_device())
+            #print("INNER LOOPS")
+            #print(state)
+            #print(reward)
+            # print("gray.shape", gray.shape)
+            # print("gray", gray)
+            # if collected_steps >= 0:
+            #     collected_episodes += 1
+            #     self._needs_reset = True
             if not self.is_vectorized and done:
                 collected_episodes += 1
                 self._needs_reset = True

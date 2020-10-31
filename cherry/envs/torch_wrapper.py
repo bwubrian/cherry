@@ -36,12 +36,15 @@ class Torch(Wrapper):
         return state
 
     def _convert_atomic_action(self, action):
+        #print("called")
+        #print("action:", action)
         if isinstance(action, th.Tensor):
             action = action.view(-1).cpu().detach().numpy()
-        if self.discrete_action:
-            if not isinstance(action, (int, float)):
-                action = action[0]
-            action = int(action)
+        # if self.discrete_action:
+        #     if not isinstance(action, (int, float)):
+        #         action = action[0]
+        #     action = int(action)
+        #action = int(action[0])
         return action
 
     def _convert_action(self, action):
@@ -57,6 +60,7 @@ class Torch(Wrapper):
 
     def step(self, action):
         action = self._convert_action(action)
+        #print("torch warpper action: ", action)
         state, reward, done, info = self.env.step(action)
         state = self._convert_state(state)
         return state, reward, done, info

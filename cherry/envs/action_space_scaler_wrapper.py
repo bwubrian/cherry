@@ -16,6 +16,7 @@ class ActionSpaceScaler(Wrapper):
     """
 
     def __init__(self, env, clip=1.0):
+        print("im updated version")
         super(ActionSpaceScaler, self).__init__(env)
         self.env = env
         self.clip = clip
@@ -26,8 +27,10 @@ class ActionSpaceScaler(Wrapper):
         return self.env.reset(*args, **kwargs)
 
     def _normalize(self, action):
-        lb = self.env.action_space.low
-        ub = self.env.action_space.high
+        #lb = self.env.action_space.low
+        #ub = self.env.action_space.high
+        lb = 0
+        ub = 1
         scaled_action = lb + (action + self.clip) * 0.5 * (ub - lb)
         scaled_action = np.clip(scaled_action, lb, ub)
         return scaled_action
@@ -37,4 +40,10 @@ class ActionSpaceScaler(Wrapper):
             action = [self._normalize(a) for a in action]
         else:
             action = self._normalize(action)
-        return self.env.step(action)
+        print("actual action: ", action)
+        #return self.env.step(action)
+        state, reward, done, _ = self.env.step(action)
+        print("actual reward: ", reward)
+        if done:
+            print("done")
+        return state, reward, done, _
